@@ -1,3 +1,4 @@
+# api_json.py
 import json
 import os
 from api_expansion import Expansion
@@ -185,7 +186,28 @@ class ConfigManager:
                     },
                     "OLED": {
                         "task_name": "task_oled.py",
-                        "is_run_on_startup": True
+                        "is_run_on_startup": True,
+                        "screen1": {
+                            "data_format": 0,
+                            "time_format": 0,
+                            "display_time": 3.0,
+                            "is_run_on_oled": True
+                        },
+                        "screen2": {
+                            "interchange": 0,
+                            "display_time": 3.0,
+                            "is_run_on_oled": True
+                        },
+                        "screen3": {
+                            "interchange": 0,
+                            "display_time": 3.0,
+                            "is_run_on_oled": True
+                        },
+                        "screen4": {
+                            "interchange": 0,
+                            "display_time": 3.0,
+                            "is_run_on_oled": True
+                        }
                     },
                     "Service": {
                         "is_exist_on_rpi": False,

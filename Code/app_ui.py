@@ -11,6 +11,7 @@ from PyQt5.QtGui import QPalette, QColor
 from app_ui_monitor import MonitoringTab             # Import monitoring interface
 from app_ui_led import LedTab                        # Import LED interface
 from app_ui_fan import FanTab                        # Import fan control interface
+from app_ui_oled import OledTab                      # Import OLED interface
 from app_ui_setting import SettingTab                # Import settings interface
 
 from api_json import ConfigManager                   # Import configuration management module
@@ -78,6 +79,9 @@ class MainWindow(QMainWindow):
         self.fan_pi_follows_duty_map = [0, 255]                      # Fan follows Raspberry Pi mode duty cycle mapping parameters
         self.fan_process = None                                      # Used to store running subprocess
 
+        self.oled_screen_interchange = [0, 0, 0, 0, 0]               # OLED screen interchange parameters
+        self.oled_screen_display_time =  [3.0, 3.0, 3.0, 3.0]        # OLED screen display time
+        self.oled_screen_is_run_on_oled  = [True, True, True, True]  # Whether to run on OLED
         self.oled_process = None                                     # OLED process object
 
         self.init_ui()                                               # Initialize UI
@@ -105,6 +109,11 @@ class MainWindow(QMainWindow):
         self.fan_tab = FanTab(self.width(), self.height())
         self.fan_tab.setFocusPolicy(Qt.NoFocus)
 
+        # Create Oled tab
+        self.oled_tab = OledTab(self.width(), self.height())
+        self.oled_tab.setFocusPolicy(Qt.NoFocus)
+
+        # Create setting tab
         self.setting_tab = SettingTab(self.width(), self.height())
         self.setting_tab.setFocusPolicy(Qt.NoFocus)
 
@@ -112,6 +121,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.monitoring_tab, "Monitor")
         self.tab_widget.addTab(self.led_tab, "LED")
         self.tab_widget.addTab(self.fan_tab, "Fan")
+        self.tab_widget.addTab(self.oled_tab, "OLED")
         self.tab_widget.addTab(self.setting_tab, "Settings")
         self.tab_widget.setStyleSheet("""
             QTabWidget::pane {
@@ -158,6 +168,20 @@ class MainWindow(QMainWindow):
         self.fan_pi_follows_duty_map[0] = self.config_manager.get_value('Fan', 'mode3_min_speed_mapping') or 0
         self.fan_pi_follows_duty_map[1] = self.config_manager.get_value('Fan', 'mode3_max_speed_mapping') or 255
 
+        self.oled_screen_interchange[0] = self.config_manager.get_value('OLED', 'screen1').get('data_format', 0)
+        self.oled_screen_interchange[1] = self.config_manager.get_value('OLED', 'screen1').get('time_format', 0)
+        self.oled_screen_interchange[2] = self.config_manager.get_value('OLED', 'screen2').get('interchange', 0)
+        self.oled_screen_interchange[3] = self.config_manager.get_value('OLED', 'screen3').get('interchange', 0)
+        self.oled_screen_interchange[4] = self.config_manager.get_value('OLED', 'screen4').get('interchange', 0)
+        self.oled_screen_display_time[0] = self.config_manager.get_value('OLED', 'screen1').get('display_time', 3.0)
+        self.oled_screen_display_time[1] = self.config_manager.get_value('OLED', 'screen2').get('display_time', 3.0)
+        self.oled_screen_display_time[2] = self.config_manager.get_value('OLED', 'screen3').get('display_time', 3.0)
+        self.oled_screen_display_time[3] = self.config_manager.get_value('OLED', 'screen4').get('display_time', 3.0)
+        self.oled_screen_is_run_on_oled[0] = self.config_manager.get_value('OLED', 'screen1').get('is_run_on_oled', True)
+        self.oled_screen_is_run_on_oled[1] = self.config_manager.get_value('OLED', 'screen2').get('is_run_on_oled', True)
+        self.oled_screen_is_run_on_oled[2] = self.config_manager.get_value('OLED', 'screen3').get('is_run_on_oled', True)
+        self.oled_screen_is_run_on_oled[3] = self.config_manager.get_value('OLED', 'screen4').get('is_run_on_oled', True)
+
         self.setting_led_task_is_running = self.config_manager.get_value('LED', 'is_run_on_startup') or False
         self.setting_fan_task_is_running = self.config_manager.get_value('Fan', 'is_run_on_startup') or False
         self.setting_oled_task_is_running = self.config_manager.get_value('OLED', 'is_run_on_startup') or False
@@ -193,6 +217,7 @@ class MainWindow(QMainWindow):
         self.monitoring_tab.resetUiSize(self.width(), self.height())
         self.led_tab.resetUiSize(self.width(), self.height())
         self.fan_tab.resetUiSize(self.width(), self.height())
+        self.oled_tab.resetUiSize(self.width(), self.height())
         self.setting_tab.resetUiSize(self.width(), self.height())
         if self.ui_follow_led_color == 1:
             self.update_monitor_colors_event()
@@ -222,6 +247,12 @@ class MainWindow(QMainWindow):
         self.fan_tab.set_case_weight_slider_value(self.fan_temp_mode_duty)
         self.fan_tab.set_pi_weight_slider_map(self.fan_pi_follows_duty_map)
         self.fan_tab.set_manual_weight_slider_value(self.fan_manual_mode_duty)
+        
+        # Load OLED interface parameters
+        self.oled_tab.set_display_time_label(0, self.oled_screen_display_time[0])
+        self.oled_tab.set_display_time_label(1, self.oled_screen_display_time[1])
+        self.oled_tab.set_display_time_label(2, self.oled_screen_display_time[2])
+        self.oled_tab.set_display_time_label(3, self.oled_screen_display_time[3])
 
         # Load settings interface parameters
         self.setting_tab.btn_led_switch.setChecked(self.setting_led_task_is_running)
@@ -297,6 +328,19 @@ class MainWindow(QMainWindow):
         self.fan_tab.fan_btn_save_config.clicked.connect(self.fan_save_config_event)
         self.fan_tab.fan_btn_edit_custom_code.clicked.connect(self.fan_edit_custom_code_event)
         self.fan_tab.fan_btn_test_coustom_code.clicked.connect(self.fan_test_custom_code_event)
+
+        # OLED interface signals and slot functions
+        self.oled_tab.screen1_checkbox.clicked.connect(self.oled_screen1_checkbox_event)
+        self.oled_tab.screen2_checkbox.clicked.connect(self.oled_screen2_checkbox_event)
+        self.oled_tab.screen3_checkbox.clicked.connect(self.oled_screen3_checkbox_event)
+        self.oled_tab.screen4_checkbox.clicked.connect(self.oled_screen4_checkbox_event)
+        self.oled_tab.screen1_data_format_combo.currentIndexChanged.connect(self.oled_screen1_data_format_combo_event)
+        self.oled_tab.screen1_time_format_combo.currentIndexChanged.connect(self.oled_screen1_time_format_combo_event)
+        self.oled_tab.screen2_interchange_combo.currentIndexChanged.connect(self.oled_screen2_interchange_combo_event)
+        self.oled_tab.screen3_interchange_combo.currentIndexChanged.connect(self.oled_screen3_interchange_combo_event)
+        self.oled_tab.screen4_interchange_combo.currentIndexChanged.connect(self.oled_screen4_interchange_combo_event)
+        self.oled_tab.screen_display_time_minus_btn.clicked.connect(self.oled_screen_display_time_minus_btn_event)
+        self.oled_tab.screen_display_time_plus_btn.clicked.connect(self.oled_screen_display_time_plus_btn_event)
 
         # Settings interface signals and slot functions
         self.setting_tab.btn_led_edit.clicked.connect(self.led_edit_custom_code_event)
@@ -724,6 +768,141 @@ class MainWindow(QMainWindow):
             self.set_fan_process(True)
             self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
     
+    # OLED interface signals and slot functions
+    def oled_process_reboot(self):
+        """Handle OLED process reboot"""
+        if self.oled_process is not None and self.oled_process.poll() is None:
+            self.set_oled_process(False)
+            time.sleep(0.03)
+            self.set_oled_process(True)
+        if self.setting_service_is_exist and self.setting_service_is_running and self.setting_oled_task_is_running:
+            self.service_generator.stop_service_on_rpi()
+            self.set_oled_process(True)
+    def oled_screen1_checkbox_event(self):
+        """Handle OLED screen1 checkbox event"""
+        is_checked = self.oled_tab.screen1_checkbox.isChecked()
+        self.oled_tab.set_display_time_is_enabled(0, is_checked)
+        screen1_config = self.config_manager.get_value('OLED', 'screen1') or {}
+        screen1_config['is_run_on_oled'] = is_checked
+        self.config_manager.set_value('OLED', 'screen1', screen1_config)
+        self.config_manager.save_config()
+        self.oled_screen_is_run_on_oled[0] = is_checked
+        self.oled_process_reboot()
+    def oled_screen2_checkbox_event(self):
+        """Handle OLED screen2 checkbox event"""
+        is_checked = self.oled_tab.screen2_checkbox.isChecked()
+        self.oled_tab.set_display_time_is_enabled(1, is_checked)
+        screen2_config = self.config_manager.get_value('OLED', 'screen2') or {}
+        screen2_config['is_run_on_oled'] = is_checked
+        self.config_manager.set_value('OLED', 'screen2', screen2_config)
+        self.config_manager.save_config()
+        self.oled_screen_is_run_on_oled[1] = is_checked
+        self.oled_process_reboot()
+    def oled_screen3_checkbox_event(self):
+        """Handle OLED screen3 checkbox event"""
+        is_checked = self.oled_tab.screen3_checkbox.isChecked()
+        self.oled_tab.set_display_time_is_enabled(2, is_checked)
+        screen3_config = self.config_manager.get_value('OLED', 'screen3') or {}
+        screen3_config['is_run_on_oled'] = is_checked
+        self.config_manager.set_value('OLED', 'screen3', screen3_config)
+        self.config_manager.save_config()
+        self.oled_screen_is_run_on_oled[2] = is_checked
+        self.oled_process_reboot()
+    def oled_screen4_checkbox_event(self):
+        """Handle OLED screen4 checkbox event"""
+        is_checked = self.oled_tab.screen4_checkbox.isChecked()
+        self.oled_tab.set_display_time_is_enabled(3, is_checked)
+        screen4_config = self.config_manager.get_value('OLED', 'screen4') or {}
+        screen4_config['is_run_on_oled'] = is_checked
+        self.config_manager.set_value('OLED', 'screen4', screen4_config)
+        self.config_manager.save_config()
+        self.oled_screen_is_run_on_oled[3] = is_checked
+        self.oled_process_reboot()
+    def oled_screen1_data_format_combo_event(self, index):
+        """Handle OLED screen1 data format combo box event"""
+        screen1_config = self.config_manager.get_value('OLED', 'screen1') or {}
+        screen1_config['data_format'] = index
+        self.config_manager.set_value('OLED', 'screen1', screen1_config)
+        self.config_manager.save_config()
+        self.oled_screen_interchange[0] = index
+        self.oled_process_reboot()
+    def oled_screen1_time_format_combo_event(self, index):
+        """Handle OLED screen1 time format combo box event"""
+        screen1_config = self.config_manager.get_value('OLED', 'screen1') or {}
+        screen1_config['time_format'] = index
+        self.config_manager.set_value('OLED', 'screen1', screen1_config)
+        self.config_manager.save_config()
+        self.oled_screen_interchange[1] = index
+        self.oled_process_reboot()
+    def oled_screen2_interchange_combo_event(self, index):
+        """Handle OLED screen2 interchange combo box event"""
+        screen2_config = self.config_manager.get_value('OLED', 'screen2') or {}
+        screen2_config['interchange'] = index
+        self.config_manager.set_value('OLED', 'screen2', screen2_config)
+        self.config_manager.save_config()
+        self.oled_screen_interchange[2] = index
+        self.oled_process_reboot()
+    def oled_screen3_interchange_combo_event(self, index):
+        """Handle OLED screen3 interchange combo box event"""
+        screen3_config = self.config_manager.get_value('OLED', 'screen3') or {}
+        screen3_config['interchange'] = index
+        self.config_manager.set_value('OLED', 'screen3', screen3_config)
+        self.config_manager.save_config()
+        self.oled_screen_interchange[3] = index
+        self.oled_process_reboot()
+    def oled_screen4_interchange_combo_event(self, index):
+        """Handle OLED screen4 interchange combo box event"""
+        screen4_config = self.config_manager.get_value('OLED', 'screen4') or {}
+        screen4_config['interchange'] = index
+        self.config_manager.set_value('OLED', 'screen4', screen4_config)
+        self.config_manager.save_config()
+        self.oled_screen_interchange[4] = index
+        self.oled_process_reboot()
+    def oled_screen_display_time_minus_btn_event(self):
+        """Handle OLED screen display time minus button event"""
+        checkboxes = [
+            self.oled_tab.screen1_checkbox,
+            self.oled_tab.screen2_checkbox,
+            self.oled_tab.screen3_checkbox,
+            self.oled_tab.screen4_checkbox
+        ]
+        for i, checkbox in enumerate(checkboxes):
+            if checkbox.isChecked(): 
+                screen_num = i + 1
+                screen_key = f'screen{screen_num}'
+                screen_config = self.config_manager.get_value('OLED', screen_key) or {}
+                current_time = screen_config.get('display_time', 3.0)
+                new_time = current_time - 0.5
+                if new_time <= 0:
+                    new_time = 0.5
+                screen_config['display_time'] = round(new_time, 1)
+                self.config_manager.set_value('OLED', screen_key, screen_config)
+                self.oled_screen_display_time[i] = new_time
+                self.oled_tab.set_display_time_label(i, new_time)
+        self.config_manager.save_config()
+        self.oled_process_reboot()
+    def oled_screen_display_time_plus_btn_event(self):
+        """Handle OLED screen display time plus button event"""
+        checkboxes = [
+            self.oled_tab.screen1_checkbox,
+            self.oled_tab.screen2_checkbox,
+            self.oled_tab.screen3_checkbox,
+            self.oled_tab.screen4_checkbox
+        ]
+        for i, checkbox in enumerate(checkboxes):
+            if checkbox.isChecked(): 
+                screen_num = i + 1
+                screen_key = f'screen{screen_num}'
+                screen_config = self.config_manager.get_value('OLED', screen_key) or {}
+                current_time = screen_config.get('display_time', 3.0)
+                new_time =  current_time + 0.5
+                screen_config['display_time'] = round(new_time, 1)
+                self.config_manager.set_value('OLED', screen_key, screen_config)
+                self.oled_screen_display_time[i] = new_time
+                self.oled_tab.set_display_time_label(i, new_time)
+        self.config_manager.save_config()
+        self.oled_process_reboot()
+    
     # Setting interface signals and slot functions
     def set_oled_process(self, enable = True):
         """Handle OLED process"""
@@ -957,6 +1136,23 @@ class MainWindow(QMainWindow):
                     self.fan_tab.fan_btn_test_coustom_code.setText("Test")
         
         elif current_tab_index == 3:
+            if self.setting_service_is_exist and self.setting_oled_task_is_running: # If background service is running oled task
+                self.setting_oled_task_is_running = False 
+                self.config_manager.set_value('OLED', 'is_run_on_startup', self.setting_oled_task_is_running)            # Stop oled task by modifying config file
+                self.config_manager.save_config()
+                self.setting_tab.btn_oled_switch.setChecked(self.setting_oled_task_is_running)
+                self.setting_tab.set_custom_task_oled_button_state(self.setting_service_is_exist, self.setting_oled_task_is_running)
+                self.set_oled_process(True)
+            else:
+                if  self.oled_process is not None:
+                    self.set_oled_process(True)
+                    self.setting_tab.btn_oled_test.setText("Stop")
+                else:
+                    self.set_oled_process(False)
+                    self.setting_tab.btn_oled_test.setText("Test")
+            
+
+        elif current_tab_index == 4:
             if self.led_process is not None:
                 self.setting_tab.btn_led_test.setText("Stop")
             else:

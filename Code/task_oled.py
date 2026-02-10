@@ -379,6 +379,8 @@ class OLED_TASK:
 
             cpu_temperature = self.system_information.get_raspberry_pi_cpu_temperature()
             computer_temperature = self.get_computer_temperature()
+            led_mode = self.get_computer_led_mode() 
+            fan_mode = self.get_computer_fan_mode()
 
             current_pi_duty = self.system_information.get_raspberry_pi_fan_duty()
             computer_fan_duty = self.get_computer_fan_duty()
@@ -441,6 +443,26 @@ class OLED_TASK:
                 screen_functions[current_active_index]()
             except Exception as e:
                 print(e)
+            
+            # # Print data every 4 updates (1.2 seconds)
+            # if oled_counter % 4 == 0:
+                # # Use single print statement to reduce I/O
+                # print("raspberry today:        ", current_date)
+                # print("raspberry weekday:      ", current_weekday)
+                # print("raspberry current time: ", current_time)
+                # print("raspberry ip address:   ", ip_address) 
+                # print("raspberry cpu usage:     {}%".format(cpu_usage))
+                # print("raspberry memory usage:  {}% (used: {} G, totol: {} G)".format(memory_usage[0], memory_usage[1], memory_usage[2]))
+                # print("raspberry disk usage:    {}% (used: {} G, totol: {} G)".format(disk_usage[0], disk_usage[1], disk_usage[2]))
+                # print("raspberry temperature:   {}".format(cpu_temperature))
+                # print("computer temperature:    {}".format(computer_temperature))
+                # print("computer led mode:      ", led_mode)
+                # print("computer fan mode:      ", fan_mode)
+                # print("raspberry fan duty:     ", current_pi_duty)
+                # print("computer fan duty:      ", computer_fan_duty)
+                # print("")
+            
+            # oled_counter += 1
             time.sleep(0.3)  # Base interval of 0.3 second
 
 

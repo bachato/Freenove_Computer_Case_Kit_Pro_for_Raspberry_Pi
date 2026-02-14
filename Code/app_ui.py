@@ -253,6 +253,18 @@ class MainWindow(QMainWindow):
         self.oled_tab.set_display_time_label(1, self.oled_screen_display_time[1])
         self.oled_tab.set_display_time_label(2, self.oled_screen_display_time[2])
         self.oled_tab.set_display_time_label(3, self.oled_screen_display_time[3])
+        try:
+            self.oled_tab.screen1_data_format_combo.setCurrentIndex(self.oled_screen_interchange[0])
+            self.oled_tab.screen1_time_format_combo.setCurrentIndex(self.oled_screen_interchange[1])
+            self.oled_tab.screen2_interchange_combo.setCurrentIndex(self.oled_screen_interchange[2])    
+            self.oled_tab.screen3_interchange_combo.setCurrentIndex(self.oled_screen_interchange[3])
+            self.oled_tab.screen4_interchange_combo.setCurrentIndex(self.oled_screen_interchange[4])
+            self.oled_tab.screen1_checkbox.setChecked(self.oled_screen_is_run_on_oled[0])
+            self.oled_tab.screen2_checkbox.setChecked(self.oled_screen_is_run_on_oled[1])
+            self.oled_tab.screen3_checkbox.setChecked(self.oled_screen_is_run_on_oled[2])
+            self.oled_tab.screen4_checkbox.setChecked(self.oled_screen_is_run_on_oled[3])
+        except:
+            pass
 
         # Load settings interface parameters
         self.setting_tab.btn_led_switch.setChecked(self.setting_led_task_is_running)

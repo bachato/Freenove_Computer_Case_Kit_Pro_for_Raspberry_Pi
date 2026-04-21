@@ -139,9 +139,9 @@ class MonitoringTab(QWidget):
         ]
 
         # Function area
-        self.initUI()                # Initialize interface
+        self.init_ui()                # Initialize interface
         
-    def initUI(self):
+    def init_ui(self):
         # Set screen scaling factor
         self.scale_factor = 0.6
         self.setGeometry(0, 0, self.window_width, self.window_height)

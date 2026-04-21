@@ -38,10 +38,15 @@ class LedTab(QWidget):
         self.led_color_value = [0, 0, 0]        # LED color value
         self.led_process = None                 # Used to store running subprocess
         # Function area
-        self.initUI()                        # Initialize interface
+        self.init_ui()                        # Initialize interface
+
+        self.load_ui_events()
+        self.set_led_mode(0)
+        self.set_slider_control_state(False)
+
 
     # Initialize control interface
-    def initUI(self):
+    def init_ui(self):
         """Initialize control interface"""
         # Set screen scaling factor
         self.scale_factor = 0.6
@@ -278,6 +283,24 @@ class LedTab(QWidget):
 
         # Set main window
         self.setLayout(self.vbox_layout)
+
+    def load_ui_events(self):
+        for i in range(len(self.led_mode_radio_buttons_names)):  
+            self.led_mode_radio_buttons[i].clicked.connect(self.led_radio_clicked_event)
+
+    def led_radio_clicked_event(self):
+        """Handle LED radio button click event"""
+        led_radio_mode = 0
+        sender_button = self.sender()
+        for i in range(len(self.led_mode_radio_buttons_names)):
+            if sender_button.text() == self.led_mode_radio_buttons_names[i]:
+                led_radio_mode = i
+        if led_radio_mode in [0, 4, 5]: 
+            self.set_slider_control_state(False)  
+        else: 
+            self.set_slider_control_state(True) 
+        self.set_led_mode(led_radio_mode)
+
 
     # Recalculate control heights when window size changes
     def resizeEvent(self, event):

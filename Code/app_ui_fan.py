@@ -3,7 +3,7 @@ import sys
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication, QHBoxLayout, QSlider, QLabel, QPushButton, QRadioButton, QLineEdit
 from PyQt5.QtCore import Qt
 
-class FanTab(QWidget):
+class FNK0107_FanTab(QWidget):
     def __init__(self, width=700, height=400):
         """Initialize the fan control interface"""
         super().__init__()
@@ -78,6 +78,7 @@ class FanTab(QWidget):
         
         # Function area
         self.init_ui()                        # Initialize interface
+        self.load_ui_events()
 
     def init_ui(self):
         """Initialize control interface"""
@@ -87,55 +88,13 @@ class FanTab(QWidget):
         self.setStyleSheet("background-color: #333333;")  # Set black background for monitoring tab
         self.setMinimumSize(round(self.window_width*self.scale_factor), round(self.window_height*self.scale_factor))
 
-        # Create horizontal layout containing fan mode options
-        self.fan_mode_hbox_layout_1 = QHBoxLayout()  # Fan mode radio button layout
-        self.fan_mode_hbox_layout_2 = QHBoxLayout()  # Fan mode radio button layout
 
-        # Create fan mode radio buttons
-        for i in range(3):
-            radio_button = QRadioButton(self.fan_mode_radio_buttons_names[i])
-            radio_button.setStyleSheet("""
-                QRadioButton {
-                    background-color: #444444;
-                    color: white;
-                    border: 1px solid #555555;
-                    border-radius: 5px;
-                    padding: 2px;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-            """)
-            self.fan_mode_radio_buttons.append(radio_button)
-            self.fan_mode_radio_buttons[i].setMinimumSize(50, 30)
-            self.fan_mode_hbox_layout_1.addWidget(self.fan_mode_radio_buttons[i])
-        for i in range(3,5,1):
-            radio_button = QRadioButton(self.fan_mode_radio_buttons_names[i])
-            radio_button.setStyleSheet("""
-                QRadioButton {
-                    background-color: #444444;
-                    color: white;
-                    border: 1px solid #555555;
-                    border-radius: 5px;
-                    padding: 2px;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-            """)
-            self.fan_mode_radio_buttons.append(radio_button)
-            self.fan_mode_radio_buttons[i].setMinimumSize(50, 30)
-            self.fan_mode_hbox_layout_2.addWidget(self.fan_mode_radio_buttons[i])
-        self.fan_mode_hbox_layout_1.setSpacing(10)          # Set control spacing
-        self.fan_mode_hbox_layout_2.setSpacing(10)
-        self.fan_mode_hbox_layout_1.setStretch(0,1)
-        self.fan_mode_hbox_layout_1.setStretch(1,1)
-        self.fan_mode_hbox_layout_1.setStretch(2,1)
-        self.fan_mode_hbox_layout_2.setStretch(0,1)
-        self.fan_mode_hbox_layout_2.setStretch(1,1)
-        
-        # Create three sub-interfaces
-        self.create_fan_duty_widget()
+        self.create_radio_buttons()
+
+        self.create_manual_widget()
         self.create_temp_threshold_widget()
         self.create_pi_following_widget()
+        
         self.show_widget_by_mode(self.fan_mode)
         
         # Create slider display area layout
@@ -194,13 +153,83 @@ class FanTab(QWidget):
         # Set main window
         self.setLayout(self.vbox_layout)
 
-    def create_fan_duty_widget(self):
+    def load_ui_events(self):
+        # Fan interface signals and slot functions
+        for i in range(len(self.fan_mode_radio_buttons_names)):  
+            self.fan_mode_radio_buttons[i].clicked.connect(self.fan_radio_clicked_event)
+
+    def create_radio_buttons(self):
+        # Create horizontal layout containing fan mode options
+        self.fan_mode_hbox_layout_1 = QHBoxLayout()  # Fan mode radio button layout
+        self.fan_mode_hbox_layout_2 = QHBoxLayout()  # Fan mode radio button layout
+        radio_button_style = """
+            QRadioButton {
+                background-color: #444444;
+                color: white;
+                border: 1px solid #555555;
+                border-radius: 5px;
+                padding: 2px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+        """
+        for i in range(3):
+            radio_button = QRadioButton(self.fan_mode_radio_buttons_names[i])
+            radio_button.setStyleSheet(radio_button_style)
+            self.fan_mode_radio_buttons.append(radio_button)
+            self.fan_mode_radio_buttons[i].setMinimumSize(50, 30)
+            self.fan_mode_hbox_layout_1.addWidget(self.fan_mode_radio_buttons[i])
+        for i in range(3,5,1):
+            radio_button = QRadioButton(self.fan_mode_radio_buttons_names[i])
+            radio_button.setStyleSheet(radio_button_style)
+            self.fan_mode_radio_buttons.append(radio_button)
+            self.fan_mode_radio_buttons[i].setMinimumSize(50, 30)
+            self.fan_mode_hbox_layout_2.addWidget(self.fan_mode_radio_buttons[i])
+        self.fan_mode_hbox_layout_1.setSpacing(10)          # Set control spacing
+        self.fan_mode_hbox_layout_2.setSpacing(10)
+        self.fan_mode_hbox_layout_1.setStretch(0,1)
+        self.fan_mode_hbox_layout_1.setStretch(1,1)
+        self.fan_mode_hbox_layout_1.setStretch(2,1)
+        self.fan_mode_hbox_layout_2.setStretch(0,1)
+        self.fan_mode_hbox_layout_2.setStretch(1,1)
+
+    def fan_radio_clicked_event(self):
+        """Handle FAN mode switch event"""
+        fan_radio_mode = 0
+        sender_button = self.sender()
+        for i in range(len(self.fan_mode_radio_buttons_names)):
+            if sender_button.text() == self.fan_mode_radio_buttons_names[i]:
+                fan_radio_mode = i
+        self.set_fan_radio_mode(fan_radio_mode)
+
+    def get_fan_manual_slider_style(self, color):
+        """Get slider style based on color"""
+        return f"""
+            QSlider {{
+                border: 2px solid #444444;    /* Add external border */
+                border-radius: 5px;           /* Border rounded corners */
+                background-color: #333333;    /* Background color */
+                padding: 2px;                 /* Padding */
+            }}
+            QSlider::groove:horizontal {{ 
+                background: #555555;  /* Groove color */
+                height: 20px;         /* Groove height */
+                border-radius: 5px;   /* Groove rounded corners */
+            }}
+            QSlider::handle:horizontal {{
+                background: {color};  /* Handle color */
+                width: 40px;          /* Handle width */
+                height: 20px;         /* Handle height */
+                margin-top: -8px;     /* Move handle up */
+                margin-bottom: -8px;  /* Move handle down */
+            }}
+        """
+    
+    def create_manual_widget(self):
         """Create fan duty cycle sub-interface"""
         self.fan_manual_widget = QWidget()
         fan_duty_layout = QVBoxLayout()
         fan_duty_layout.setSpacing(10)
-        
-        # Uniformly set style for all components
         self.slider_label_style = """
             background-color: #444444;
             color: white;
@@ -216,26 +245,7 @@ class FanTab(QWidget):
         self.fan_manual_fan1_slider_label.setStyleSheet(self.slider_label_style)
         self.fan_manual_fan1_slider_label.setFixedWidth(90)
         self.fan_manual_slider_fan1 = QSlider(Qt.Horizontal)
-        self.fan_manual_slider_fan1.setStyleSheet("""
-            QSlider {
-                border: 2px solid #444444;    /* Add external border */
-                border-radius: 5px;           /* Border rounded corners */
-                background-color: #333333;    /* Background color */
-                padding: 2px;                 /* Padding */
-            }
-            QSlider::groove:horizontal { 
-                background: #555555;  /* Groove color */
-                height: 20px;         /* Groove height */
-                border-radius: 5px;   /* Groove rounded corners */
-            }
-            QSlider::handle:horizontal {
-                background: #45B7D1;  /* Handle color */
-                width: 40px;          /* Handle width */
-                height: 20px;         /* Handle height */
-                margin-top: -8px;     /* Move handle up */
-                margin-bottom: -8px;  /* Move handle down */
-            }
-        """)
+        self.fan_manual_slider_fan1.setStyleSheet(self.get_fan_manual_slider_style("#45B7D1"))
         self.fan_manual_slider_fan1.setRange(0, 255)
         self.fan_manual_slider_fan1.setValue(0)
         self.fan_manual_fan1_slider_value = QLabel("0")
@@ -253,26 +263,7 @@ class FanTab(QWidget):
         self.fan_manual_fan2_slider_label.setStyleSheet(self.slider_label_style)
         self.fan_manual_fan2_slider_label.setFixedWidth(90)
         self.fan_manual_slider_fan2 = QSlider(Qt.Horizontal)
-        self.fan_manual_slider_fan2.setStyleSheet("""
-            QSlider {
-                border: 2px solid #444444;    /* Add external border */
-                border-radius: 5px;           /* Border rounded corners */
-                background-color: #333333;    /* Background color */
-                padding: 2px;                 /* Padding */
-            }
-            QSlider::groove:horizontal { 
-                background: #555555;  /* Groove color */
-                height: 20px;         /* Groove height */
-                border-radius: 5px;   /* Groove rounded corners */
-            }
-            QSlider::handle:horizontal {
-                background: #4ECDC4;  /* Handle color */
-                width: 40px;          /* Handle width */
-                height: 20px;         /* Handle height */
-                margin-top: -8px;     /* Move handle up */
-                margin-bottom: -8px;  /* Move handle down */
-            }
-        """)
+        self.fan_manual_slider_fan2.setStyleSheet(self.get_fan_manual_slider_style("#03F8BB"))
         self.fan_manual_slider_fan2.setRange(0, 255)
         self.fan_manual_slider_fan2.setValue(0)
         self.fan_manual_fan2_slider_value = QLabel("0")
@@ -290,26 +281,7 @@ class FanTab(QWidget):
         self.fan_manual_fan3_slider_label.setStyleSheet(self.slider_label_style)
         self.fan_manual_fan3_slider_label.setFixedWidth(90)
         self.fan_manual_slider_fan3 = QSlider(Qt.Horizontal)
-        self.fan_manual_slider_fan3.setStyleSheet("""
-            QSlider {
-                border: 2px solid #444444;    /* Add external border */
-                border-radius: 5px;           /* Border rounded corners */
-                background-color: #333333;    /* Background color */
-                padding: 2px;                 /* Padding */
-            }
-            QSlider::groove:horizontal { 
-                background: #555555;  /* Groove color */
-                height: 20px;         /* Groove height */
-                border-radius: 5px;   /* Groove rounded corners */
-            }
-            QSlider::handle:horizontal {
-                background: #FFA500;  /* Handle color */
-                width: 40px;          /* Handle width */
-                height: 20px;         /* Handle height */
-                margin-top: -8px;    /* Move handle up */
-                margin-bottom: -8px; /* Move handle down */
-            }
-        """)
+        self.fan_manual_slider_fan3.setStyleSheet(self.get_fan_manual_slider_style("#FFA500"))
         self.fan_manual_slider_fan3.setRange(0, 255)
         self.fan_manual_slider_fan3.setValue(0)
         self.fan_manual_fan3_slider_value = QLabel("0")
@@ -780,7 +752,7 @@ class FanTab(QWidget):
             self.fan_case_follow_widget.setEnabled(False)
             self.fan_pi_following_widget.setEnabled(False)
     
-    def set_fan_mode(self, mode):
+    def set_fan_radio_mode(self, mode):
         """Set fan mode"""
         for i in range(len(self.fan_mode_radio_buttons_names)):
             if i == mode:
@@ -868,16 +840,516 @@ class FanTab(QWidget):
         self.fan_manual_fan2_slider_value.setText(str(speed[1]))
         self.fan_manual_fan3_slider_value.setText(str(speed[2]))
 
+class FNK0100_FanTab(QWidget):
+    def __init__(self, width=700, height=400):
+        """Initialize the fan control interface"""
+        super().__init__()
+        
+        # Control area
+        self.fan_mode_radio_buttons_names = ["Follow Case", "Manual", "Custom", "Close"] # Fan mode names
+        self.fan_mode_radio_buttons = []            # Create radio button list
+        
+        # Sub-interface controls
+        self.fan_manual_widget = None                # Fan duty cycle sub-interface
+        self.fan_case_follow_widget = None           # Temperature threshold sub-interface
+        
+        # Manual control interface controls
+        self.fan_manual_fan1_slider_label = None         # Fan 1 slider label
+        self.fan_manual_fan1_slider_value = None         # Fan 1 slider value label
+        self.fan_manual_fan2_slider_label = None         # Fan 2 slider label
+        self.fan_manual_fan2_slider_value = None         # Fan 2 slider value label
+        self.fan_manual_slider_fan1 = None               # Fan 1 slider
+        self.fan_manual_slider_fan2 = None               # Fan 2 slider
+        
+        # Temperature threshold slider controls
+        self.fan_case_low_temp_lable = None              # Low temperature threshold label
+        self.fan_case_low_temp_input = None              # Low temperature threshold input box
+        self.fan_case_low_temp_minus_btn = None          # Low temperature threshold minus button
+        self.fan_case_low_temp_plus_btn = None           # Low temperature threshold plus button
+
+        self.fan_case_high_temp_lable = None             # High temperature threshold label
+        self.fan_case_high_temp_input = None             # High temperature threshold input box
+        self.fan_case_high_temp_minus_btn = None         # High temperature threshold minus button
+        self.fan_case_high_temp_plus_btn = None          # High temperature threshold plus button
+
+        # Button controls
+        self.fan_btn_save_config = None                  # Save configuration button
+        self.fan_btn_default_config = None               # Restore default configuration button
+        self.fan_btn_edit_custom_code = None             # Edit custom code button
+        self.fan_btn_test_coustom_code = None            # Test custom code button
+        
+        # Variable area
+        self.window_width = width                      # Window width
+        self.window_height = height                    # Window height
+        self.fan_mode = 0                              # Fan mode
+        self.fan_last_mode = 0                         # Last fan mode
+        self.fan_manual_mode_duty = [0, 0, 0]          # Fan manual mode duty cycle values for 3 fan interfaces
+        self.fan_temp_mode_threshold = [30, 50]        # Fan temperature mode threshold parameters
+        
+        # Function area
+        self.init_ui()                        # Initialize interface
+        self.load_ui_events()
+
+    def get_fan_manual_slider_style(self, color):
+        """Get slider style based on color"""
+        return f"""
+            QSlider {{
+                border: 2px solid #444444;    /* Add external border */
+                border-radius: 5px;           /* Border rounded corners */
+                background-color: #333333;    /* Background color */
+                padding: 2px;                 /* Padding */
+            }}
+            QSlider::groove:horizontal {{ 
+                background: #555555;  /* Groove color */
+                height: 20px;         /* Groove height */
+                border-radius: 5px;   /* Groove rounded corners */
+            }}
+            QSlider::handle:horizontal {{
+                background: {color};  /* Handle color */
+                width: 40px;          /* Handle width */
+                height: 20px;         /* Handle height */
+                margin-top: -8px;     /* Move handle up */
+                margin-bottom: -8px;  /* Move handle down */
+            }}
+        """
+    
+    def init_ui(self):
+        """Initialize control interface"""
+        # Set screen scaling factor
+        self.scale_factor = 0.6
+        self.setGeometry(0, 0, self.window_width, self.window_height)
+        self.setStyleSheet("background-color: #333333;")  # Set black background for monitoring tab
+        self.setMinimumSize(round(self.window_width*self.scale_factor), round(self.window_height*self.scale_factor))
+
+        slider_label_style = """
+            background-color: #444444;
+            color: white;
+            border: 1px solid #555555;
+            border-radius: 5px;
+            padding: 2px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+        """
+        button_style = """
+            QPushButton {
+                background-color: #444444;  /* Button background color */
+                color: white;               /* Button text color */
+                border: none;               /* No border */
+                outline: none;              /* No outline */
+                padding: 2px;               /* Button padding */
+                border-radius: 5px;         /* Button rounded corners */
+                font-size: 14px;            /* Button font size */
+                font-weight: bold;          /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #555555;  /* Button background color when mouse hovers */
+            }
+            QPushButton:pressed {
+                background-color: #666666;  /* Button background color when pressed */
+            }
+        """
+        line_edit_style = """
+            QLineEdit {
+                background-color: #444444;
+                color: white;
+                border: 1px solid #555555;
+                border-radius: 5px;
+                padding: 2px;
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+            }
+        """
+        radio_button_style = """
+            QRadioButton {
+                background-color: #444444;
+                color: white;
+                border: 1px solid #555555;
+                border-radius: 5px;
+                padding: 2px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+        """
+
+        # Create horizontal layout containing fan mode options
+        fan_mode_hbox_layout_1 = QHBoxLayout()  # Fan mode radio button layout
+        for i in range(2):
+            radio_button = QRadioButton(self.fan_mode_radio_buttons_names[i])
+            radio_button.setStyleSheet(radio_button_style)
+            self.fan_mode_radio_buttons.append(radio_button)
+            self.fan_mode_radio_buttons[i].setMinimumSize(50, 30)
+            fan_mode_hbox_layout_1.addWidget(self.fan_mode_radio_buttons[i])
+        fan_mode_hbox_layout_1.setSpacing(10)       
+        fan_mode_hbox_layout_1.setStretch(0,1)
+        fan_mode_hbox_layout_1.setStretch(1,1)
+
+        fan_mode_hbox_layout_2 = QHBoxLayout()  # Fan mode radio button layout
+        for i in range(2,4,1):
+            radio_button = QRadioButton(self.fan_mode_radio_buttons_names[i])
+            radio_button.setStyleSheet(radio_button_style)
+            self.fan_mode_radio_buttons.append(radio_button)
+            self.fan_mode_radio_buttons[i].setMinimumSize(50, 30)
+            fan_mode_hbox_layout_2.addWidget(self.fan_mode_radio_buttons[i])
+        fan_mode_hbox_layout_2.setSpacing(10)
+        fan_mode_hbox_layout_2.setStretch(0,1)
+        fan_mode_hbox_layout_2.setStretch(1,1)
+
+        temp_settings_layout_1 = QHBoxLayout()
+        self.fan_case_low_temp_input = QLineEdit()
+        self.fan_case_low_temp_input.setStyleSheet(line_edit_style)
+        self.fan_case_low_temp_input.setText("30")
+        self.fan_case_low_temp_input.setAlignment(Qt.AlignCenter)
+        self.fan_case_low_temp_input.setEnabled(False)
+        self.fan_case_low_temp_minus_btn = QPushButton("-")
+        self.fan_case_low_temp_minus_btn.setStyleSheet(button_style)
+        self.fan_case_low_temp_plus_btn = QPushButton("+")
+        self.fan_case_low_temp_plus_btn.setStyleSheet(button_style)
+        temp_settings_layout_1.addWidget(self.fan_case_low_temp_minus_btn)
+        temp_settings_layout_1.addWidget(self.fan_case_low_temp_input)
+        temp_settings_layout_1.addWidget(self.fan_case_low_temp_plus_btn)
+        temp_settings_layout_1.setStretch(0, 1)
+        temp_settings_layout_1.setStretch(1, 1)
+        temp_settings_layout_1.setStretch(2, 1)
+        temp_settings_layout_1.setSpacing(5)
+        
+        temp_settings_vbox_1 = QVBoxLayout()
+        self.fan_case_low_temp_lable = QLabel("Low Temp")
+        self.fan_case_low_temp_lable.setStyleSheet(slider_label_style)
+        temp_settings_vbox_1.addWidget(self.fan_case_low_temp_lable)
+        temp_settings_vbox_1.addLayout(temp_settings_layout_1)
+        temp_settings_vbox_1.setStretch(0, 1)
+        temp_settings_vbox_1.setStretch(1, 1)
+        temp_settings_vbox_1.setSpacing(10)
+        
+        temp_settings_layout_2 = QHBoxLayout()
+        self.fan_case_high_temp_input = QLineEdit()
+        self.fan_case_high_temp_input.setStyleSheet(line_edit_style)
+        self.fan_case_high_temp_input.setText("50")
+        self.fan_case_high_temp_input.setAlignment(Qt.AlignCenter)
+        self.fan_case_high_temp_input.setEnabled(False)
+        self.fan_case_high_temp_minus_btn = QPushButton("-")
+        self.fan_case_high_temp_minus_btn.setStyleSheet(button_style)
+        self.fan_case_high_temp_plus_btn = QPushButton("+")
+        self.fan_case_high_temp_plus_btn.setStyleSheet(button_style)
+        temp_settings_layout_2.addWidget(self.fan_case_high_temp_minus_btn)
+        temp_settings_layout_2.addWidget(self.fan_case_high_temp_input)
+        temp_settings_layout_2.addWidget(self.fan_case_high_temp_plus_btn)
+        temp_settings_layout_2.setStretch(0, 1)
+        temp_settings_layout_2.setStretch(1, 1)
+        temp_settings_layout_2.setStretch(2, 1)
+        temp_settings_layout_2.setSpacing(5)
+
+        temp_settings_vbox_2 = QVBoxLayout()
+        self.fan_case_high_temp_lable = QLabel("High Temp")
+        self.fan_case_high_temp_lable.setStyleSheet(slider_label_style)
+        temp_settings_vbox_2.addWidget(self.fan_case_high_temp_lable)
+        temp_settings_vbox_2.addLayout(temp_settings_layout_2)
+        temp_settings_vbox_2.setStretch(0, 1)
+        temp_settings_vbox_2.setStretch(1, 1)
+        temp_settings_vbox_2.setSpacing(10)
+
+        temp_settings_layout = QHBoxLayout()
+        temp_settings_layout.addLayout(temp_settings_vbox_1)
+        temp_settings_layout.addLayout(temp_settings_vbox_2)
+        temp_settings_layout.setSpacing(10)
+        temp_settings_layout.setStretch(0, 1)
+        temp_settings_layout.setStretch(1, 1)                      ###################################
+
+        self.fan_manual_slider_fan1_layout = QHBoxLayout()
+        self.fan_manual_fan1_slider_label = QLabel("FAN 1:")
+        self.fan_manual_fan1_slider_label.setStyleSheet(slider_label_style)
+        self.fan_manual_fan1_slider_label.setFixedWidth(90)
+        self.fan_manual_slider_fan1 = QSlider(Qt.Horizontal)
+        self.fan_manual_slider_fan1.setStyleSheet(self.get_fan_manual_slider_style("#1900FF"))
+        self.fan_manual_slider_fan1.setRange(0, 255)
+        self.fan_manual_slider_fan1.setValue(0)
+        self.fan_manual_fan1_slider_value = QLabel("0")
+        self.fan_manual_fan1_slider_value.setStyleSheet(slider_label_style)
+        self.fan_manual_fan1_slider_value.setFixedWidth(60)
+        self.fan_manual_slider_fan1_layout.addWidget(self.fan_manual_fan1_slider_label, stretch=1)
+        self.fan_manual_slider_fan1_layout.addWidget(self.fan_manual_slider_fan1, stretch=9)
+        self.fan_manual_slider_fan1_layout.addWidget(self.fan_manual_fan1_slider_value, stretch=1)
+        self.fan_manual_slider_fan1_layout.setSpacing(10)
+        
+        self.fan_manual_slider_fan2_layout = QHBoxLayout()
+        self.fan_manual_fan2_slider_label = QLabel("FAN 2:")
+        self.fan_manual_fan2_slider_label.setStyleSheet(slider_label_style)
+        self.fan_manual_fan2_slider_label.setFixedWidth(90)
+        self.fan_manual_slider_fan2 = QSlider(Qt.Horizontal)
+        self.fan_manual_slider_fan2.setStyleSheet(self.get_fan_manual_slider_style("#09FF00"))
+        self.fan_manual_slider_fan2.setRange(0, 255)
+        self.fan_manual_slider_fan2.setValue(0)
+        self.fan_manual_fan2_slider_value = QLabel("0")
+        self.fan_manual_fan2_slider_value.setStyleSheet(slider_label_style)
+        self.fan_manual_fan2_slider_value.setFixedWidth(60)
+        self.fan_manual_slider_fan2_layout.addWidget(self.fan_manual_fan2_slider_label, stretch=1)
+        self.fan_manual_slider_fan2_layout.addWidget(self.fan_manual_slider_fan2, stretch=9)
+        self.fan_manual_slider_fan2_layout.addWidget(self.fan_manual_fan2_slider_value, stretch=1)
+        self.fan_manual_slider_fan2_layout.setSpacing(10)
+
+        fan_duty_layout = QVBoxLayout()
+        fan_duty_layout.addLayout(self.fan_manual_slider_fan1_layout)
+        fan_duty_layout.addLayout(self.fan_manual_slider_fan2_layout)
+        fan_duty_layout.setSpacing(10)                                         #################################
+        fan_duty_layout.setStretch(0, 1)
+        fan_duty_layout.setStretch(1, 1)
+
+        # Create buttons named: Save Config, Default Config, Edit, Test
+
+        self.fan_btn_default_config = QPushButton("Default")
+        self.fan_btn_default_config.setStyleSheet(button_style)
+        self.fan_btn_save_config = QPushButton("Save")
+        self.fan_btn_save_config.setStyleSheet(button_style)
+        self.fan_btn_edit_custom_code = QPushButton("Edit")
+        self.fan_btn_edit_custom_code.setStyleSheet(button_style)
+        self.fan_btn_test_coustom_code = QPushButton("Test")
+        self.fan_btn_test_coustom_code.setStyleSheet(button_style)
+
+        btn_layout = QHBoxLayout() 
+        btn_layout.addWidget(self.fan_btn_default_config)
+        btn_layout.addWidget(self.fan_btn_save_config)
+        btn_layout.addWidget(self.fan_btn_edit_custom_code)
+        btn_layout.addWidget(self.fan_btn_test_coustom_code)
+        
+        # Set main layout
+        self.vbox_layout = QVBoxLayout()
+        self.vbox_layout.setContentsMargins(10, 10, 10, 10)  # Set margins
+        self.vbox_layout.setSpacing(10)  # Set control spacing
+        self.vbox_layout.addLayout(fan_mode_hbox_layout_1)
+        self.vbox_layout.addLayout(fan_mode_hbox_layout_2)
+        self.vbox_layout.addLayout(temp_settings_layout)
+        self.vbox_layout.addLayout(fan_duty_layout)
+        self.vbox_layout.addLayout(btn_layout)
+        self.vbox_layout.setStretch(0,1)
+        self.vbox_layout.setStretch(1,1)
+        self.vbox_layout.setStretch(2,4)
+        self.vbox_layout.setStretch(3,4)
+        self.vbox_layout.setStretch(4,1)
+
+        # Set main window
+        self.setLayout(self.vbox_layout)
+
+    def load_ui_events(self):
+        # Fan interface signals and slot functions
+        for i in range(len(self.fan_mode_radio_buttons_names)):  
+            self.fan_mode_radio_buttons[i].clicked.connect(self.fan_radio_clicked_event)
+
+    def fan_radio_clicked_event(self):
+        """Handle FAN mode switch event"""
+        fan_radio_mode = 0
+        sender_button = self.sender()
+        for i in range(len(self.fan_mode_radio_buttons_names)):
+            if sender_button.text() == self.fan_mode_radio_buttons_names[i]:
+                fan_radio_mode = i
+        self.set_fan_radio_mode(fan_radio_mode)
+
+    def resizeEvent(self, event):
+        """Recalculate control heights when window size changes"""
+        super().resizeEvent(event)
+        self.fan_ui_height = round((self.height() - 80) // 7)
+        for i in range(len(self.fan_mode_radio_buttons_names)):
+            self.fan_mode_radio_buttons[i].setMaximumHeight(self.fan_ui_height)
+        
+        self.fan_btn_save_config.setMaximumHeight(self.fan_ui_height)
+        self.fan_btn_default_config.setMaximumHeight(self.fan_ui_height)
+        self.fan_btn_edit_custom_code.setMaximumHeight(self.fan_ui_height)
+        self.fan_btn_test_coustom_code.setMaximumHeight(self.fan_ui_height)
+        self.fan_manual_fan1_slider_label.setMaximumHeight(self.fan_ui_height)
+        self.fan_manual_fan2_slider_label.setMaximumHeight(self.fan_ui_height)
+        self.fan_manual_fan1_slider_value.setMaximumHeight(self.fan_ui_height)
+        self.fan_manual_fan2_slider_value.setMaximumHeight(self.fan_ui_height)
+        self.fan_manual_slider_fan1.setMaximumHeight(self.fan_ui_height)
+        self.fan_manual_slider_fan2.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_low_temp_lable.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_high_temp_lable.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_low_temp_minus_btn.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_low_temp_plus_btn.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_high_temp_minus_btn.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_high_temp_plus_btn.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_low_temp_input.setMaximumHeight(self.fan_ui_height)
+        self.fan_case_high_temp_input.setMaximumHeight(self.fan_ui_height)
+        
+    def resetUiSize(self, width, height):
+        """Reset UI dimensions"""
+        self.window_width = width
+        self.window_height = height
+        self.setGeometry(0, 0, self.window_width, self.window_height)
+        self.setMinimumSize(round(self.window_width*self.scale_factor), round(self.window_height*self.scale_factor))
+        
+    def closeEvent(self, event):
+        """Handle window close event"""
+        event.accept()
+    
+    def set_fan_radio_mode(self, mode):
+        button_style = """
+            QPushButton {
+                background-color: #444444;  /* Button background color */
+                color: white;               /* Button text color */
+                border: none;               /* No border */
+                outline: none;              /* No outline */
+                padding: 2px;               /* Button padding */
+                border-radius: 5px;         /* Button rounded corners */
+                font-size: 14px;            /* Button font size */
+                font-weight: bold;          /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #555555;  /* Button background color when mouse hovers */
+            }
+            QPushButton:pressed {
+                background-color: #666666;  /* Button background color when pressed */
+            }
+        """
+        button_disable_style = """
+            QPushButton {
+                background-color: #444444;  /* Button background color */
+                color: #888888;             /* Button text color */
+                border: none;               /* No border */
+                outline: none;              /* No outline */
+                padding: 2px;               /* Button padding */
+                border-radius: 5px;         /* Button rounded corners */
+                font-size: 14px;            /* Button font size */
+                font-weight: bold;          /* Bold font */
+            }
+            QPushButton:hover {
+                background-color: #444444;  /* Button background color when mouse hovers */
+            }
+            QPushButton:pressed {
+                background-color: #444444;  /* Button background color when pressed */
+            }
+        """
+        line_style = """
+            QLineEdit {
+                background-color: #444444;
+                color: white;
+                border: 1px solid #555555;
+                border-radius: 5px;
+                padding: 2px;
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+            }
+        """
+        line_disabled_style = """
+            QLineEdit {
+                background-color: #444444;
+                color: #888888;
+                border: 1px solid #555555;
+                border-radius: 5px;
+                padding: 2px;
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+                color: #888888;
+            }
+        """
+
+        for i in range(len(self.fan_mode_radio_buttons_names)):
+            if i == mode:
+                self.fan_mode_radio_buttons[i].setChecked(True)
+                self.fan_mode_radio_buttons[i].setEnabled(False)
+            else:
+                self.fan_mode_radio_buttons[i].setChecked(False)
+                self.fan_mode_radio_buttons[i].setEnabled(True)
+        if mode == 0:
+            self.fan_case_low_temp_minus_btn.setEnabled(True)
+            self.fan_case_low_temp_plus_btn.setEnabled(True)
+            self.fan_case_high_temp_minus_btn.setEnabled(True)
+            self.fan_case_high_temp_plus_btn.setEnabled(True)
+            self.fan_case_low_temp_minus_btn.setStyleSheet(button_style)
+            self.fan_case_low_temp_plus_btn.setStyleSheet(button_style)
+            self.fan_case_high_temp_minus_btn.setStyleSheet(button_style)
+            self.fan_case_high_temp_plus_btn.setStyleSheet(button_style)
+            self.fan_case_low_temp_input.setStyleSheet(line_style)
+            self.fan_manual_slider_fan1.setEnabled(False)
+            self.fan_manual_slider_fan2.setEnabled(False)
+            self.fan_manual_slider_fan1.setStyleSheet(self.get_fan_manual_slider_style("#A6B4A6"))
+            self.fan_manual_slider_fan2.setStyleSheet(self.get_fan_manual_slider_style("#A6B4A6"))
+            self.fan_btn_edit_custom_code.setEnabled(False)
+            self.fan_btn_test_coustom_code.setEnabled(False)
+            self.fan_btn_edit_custom_code.setStyleSheet(button_disable_style)
+            self.fan_btn_test_coustom_code.setStyleSheet(button_disable_style)
+        elif mode == 1:
+            self.fan_case_low_temp_minus_btn.setEnabled(False)
+            self.fan_case_low_temp_plus_btn.setEnabled(False)
+            self.fan_case_high_temp_minus_btn.setEnabled(False)
+            self.fan_case_high_temp_plus_btn.setEnabled(False)
+            self.fan_case_low_temp_minus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_low_temp_plus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_high_temp_minus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_high_temp_plus_btn.setStyleSheet(button_disable_style)
+            self.fan_manual_slider_fan1.setEnabled(True)
+            self.fan_manual_slider_fan2.setEnabled(True)
+            self.fan_manual_slider_fan1.setStyleSheet(self.get_fan_manual_slider_style("#1900FF"))
+            self.fan_manual_slider_fan2.setStyleSheet(self.get_fan_manual_slider_style("#09FF00"))
+            self.fan_btn_edit_custom_code.setEnabled(False)
+            self.fan_btn_test_coustom_code.setEnabled(False)
+            self.fan_btn_edit_custom_code.setStyleSheet(button_disable_style)
+            self.fan_btn_test_coustom_code.setStyleSheet(button_disable_style)
+        elif mode == 2:
+            self.fan_case_low_temp_minus_btn.setEnabled(False)
+            self.fan_case_low_temp_plus_btn.setEnabled(False)
+            self.fan_case_high_temp_minus_btn.setEnabled(False)
+            self.fan_case_high_temp_plus_btn.setEnabled(False)
+            self.fan_case_low_temp_minus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_low_temp_plus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_high_temp_minus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_high_temp_plus_btn.setStyleSheet(button_disable_style)
+            self.fan_manual_slider_fan1.setEnabled(False)
+            self.fan_manual_slider_fan2.setEnabled(False)
+            self.fan_manual_slider_fan1.setStyleSheet(self.get_fan_manual_slider_style("#A6B4A6"))
+            self.fan_manual_slider_fan2.setStyleSheet(self.get_fan_manual_slider_style("#A6B4A6"))
+            self.fan_btn_edit_custom_code.setEnabled(True)
+            self.fan_btn_test_coustom_code.setEnabled(True)
+            self.fan_btn_edit_custom_code.setStyleSheet(button_style)
+            self.fan_btn_test_coustom_code.setStyleSheet(button_style)
+        else:
+            self.fan_case_low_temp_minus_btn.setEnabled(False)
+            self.fan_case_low_temp_plus_btn.setEnabled(False)
+            self.fan_case_high_temp_minus_btn.setEnabled(False)
+            self.fan_case_high_temp_plus_btn.setEnabled(False)
+            self.fan_case_low_temp_minus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_low_temp_plus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_high_temp_minus_btn.setStyleSheet(button_disable_style)
+            self.fan_case_high_temp_plus_btn.setStyleSheet(button_disable_style)
+            self.fan_manual_slider_fan1.setEnabled(False)
+            self.fan_manual_slider_fan2.setEnabled(False)
+            self.fan_manual_slider_fan1.setStyleSheet(self.get_fan_manual_slider_style("#A6B4A6"))
+            self.fan_manual_slider_fan2.setStyleSheet(self.get_fan_manual_slider_style("#A6B4A6"))
+            self.fan_btn_edit_custom_code.setEnabled(False)
+            self.fan_btn_test_coustom_code.setEnabled(False)
+            self.fan_btn_edit_custom_code.setStyleSheet(button_disable_style)
+            self.fan_btn_test_coustom_code.setStyleSheet(button_disable_style)
+
+    def set_case_weight_temp(self, temp_threshold):
+        """Set Case temperature thresholds"""
+        self.fan_case_low_temp_input.setText(str(temp_threshold[0]))
+        self.fan_case_high_temp_input.setText(str(temp_threshold[1]))
+    
+    def set_manual_weight_slider_value(self, speed):
+        """Set PWM values in Manual mode"""
+        self.fan_manual_slider_fan1.setValue(speed[0])
+        self.fan_manual_slider_fan2.setValue(speed[1])
+        self.fan_manual_fan1_slider_value.setText(str(speed[0]))
+        self.fan_manual_fan2_slider_value.setText(str(speed[1]))
+
+    def set_case_weight_slider_value(self, value):
+        pass
+    
+    def set_pi_weight_slider_map(self, speed):
+        pass
 
 if __name__ == "__main__":
     from api_json import ConfigManager
     app = QApplication(sys.argv)
     app_ui_config = ConfigManager()
     screen_direction = app_ui_config.get_value('Monitor', 'screen_orientation')
+
     if screen_direction == 0:  
-        window = FanTab(800, 420)
+        window = FNK0107_FanTab(800, 420) 
     elif screen_direction == 1: 
-        window = FanTab(480, 740)
-    
+        window = FNK0107_FanTab(480, 740) 
+
     window.show()
     sys.exit(app.exec_())

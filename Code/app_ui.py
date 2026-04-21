@@ -8,16 +8,16 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPalette, QColor
 
-from app_ui_monitor import MonitoringTab             # Import monitoring interface
-from app_ui_led import LedTab                        # Import LED interface
-from app_ui_fan import FanTab                        # Import fan control interface
-from app_ui_oled import OledTab                      # Import OLED interface
-from app_ui_setting import SettingTab                # Import settings interface
+from app_ui_monitor import MonitoringTab               # Import monitoring interface
+from app_ui_led import LedTab                          # Import LED interface
+from app_ui_fan import FNK0100_FanTab,FNK0107_FanTab   # Import fan control interface
+from app_ui_oled import OledTab                        # Import OLED interface
+from app_ui_setting import SettingTab                  # Import settings interface
 
-from api_json import ConfigManager                   # Import configuration management module
-from api_expansion import Expansion                  # Import expansion module
-from api_systemInfo import SystemInformation         # Import system information module
-from api_service import ServiceGenerator             # Import background task generator module
+from api_json import ConfigManager                     # Import configuration management module
+from api_expansion import Expansion                    # Import expansion module
+from api_systemInfo import SystemInformation           # Import system information module
+from api_service import ServiceGenerator               # Import background task generator module
 
 class MainWindow(QMainWindow):
     def __init__(self, width=480, height=740):
@@ -26,9 +26,10 @@ class MainWindow(QMainWindow):
         self.ui_main_width = width
         self.ui_main_height = height
         self.ui_fan_temp_mode_threshold_range = [[10, 40], [50, 80], [1, 5]]     # Fan temperature mode threshold range
-        self.setWindowTitle("Freenove_Computer_Case_Kit_Pro_for_Raspberry_Pi")   # Set window title
+        self.setWindowTitle("Freenove_Computer_Case_Kit_for_Raspberry_Pi")        # Set window title
         self.setGeometry(0, 0, self.ui_main_width, self.ui_main_height)          # Set window size
         self.setMinimumSize(round(self.ui_main_width*self.ui_factor), round(self.ui_main_height*self.ui_factor))  # Set minimum size
+        self.is_convert_temp_to_fahrenheit = False                               # Set whether to convert temperature to Fahrenheit
 
         self.config_manager = ConfigManager()                        # Create configuration management object
         self.expansion = Expansion()                                 # Create expansion module object
@@ -38,7 +39,7 @@ class MainWindow(QMainWindow):
         self.screen_direction = 0                                    # Screen orientation
         self.ui_follow_led_color = 0                                 # Whether to follow LED color
         self.color_combinations = [
-            ('#FF6B6B', '#FFD1D1'),  # Red
+            ("#C53A3A", '#FFD1D1'),  # Red
             ('#4ECDC4', '#D1F0EE'),  # Blue-green
             ('#FFA500', '#FFE5B4'),  # Orange
             ('#4ECEB4', '#D1F2D1'),  # Green
@@ -106,7 +107,10 @@ class MainWindow(QMainWindow):
         self.led_tab.setFocusPolicy(Qt.NoFocus)
 
         # Create fan tab
-        self.fan_tab = FanTab(self.width(), self.height())
+        if self.expansion.get_board_type() == "FNK0100":
+            self.fan_tab = FNK0100_FanTab(self.width(), self.height())
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.fan_tab = FNK0107_FanTab(self.width(), self.height())
         self.fan_tab.setFocusPolicy(Qt.NoFocus)
 
         # Create Oled tab
@@ -149,7 +153,22 @@ class MainWindow(QMainWindow):
     def load_ui_config(self):
         """Load configuration"""
         self.ui_follow_led_color = self.config_manager.get_value('Monitor', 'follow_led_color') or 0
-    
+        
+        if self.is_convert_temp_to_fahrenheit == True:
+            self.monitor_is_convert_cpu_temp_to_fahrenheit = True
+            self.monitor_is_convert_case_temp_to_fahrenheit = True
+        else:
+            self.monitor_is_convert_cpu_temp_to_fahrenheit = False       # Whether to convert CPU temperature to Fahrenheit
+            self.monitor_is_convert_case_temp_to_fahrenheit = False      # Whether to convert case temperature to Fahrenheit
+        
+        oled_screen_config = self.config_manager.get_value('OLED', 'screen3')
+        oled_screen_config.update({
+            'cpu_temp_celsius_or_fahrenheit': self.monitor_is_convert_cpu_temp_to_fahrenheit,
+            'case_temp_celsius_or_fahrenheit': self.monitor_is_convert_case_temp_to_fahrenheit
+        })
+        self.config_manager.set_value('OLED', 'screen3', oled_screen_config)
+        self.config_manager.save_config()
+
         self.led_mode = self.config_manager.get_value('LED', 'mode') or 0
         self.led_slider_color[0] = self.config_manager.get_value('LED', 'red_value') or 0
         self.led_slider_color[1] = self.config_manager.get_value('LED', 'green_value') or 0
@@ -242,10 +261,8 @@ class MainWindow(QMainWindow):
             self.led_tab.set_slider_control_state(True) 
 
         # Load fan interface parameters
-        self.fan_tab.set_fan_mode(self.fan_mode)
+        self.fan_tab.set_fan_radio_mode(self.fan_mode)
         self.fan_tab.set_case_weight_temp(self.fan_temp_mode_threshold)
-        self.fan_tab.set_case_weight_slider_value(self.fan_temp_mode_duty)
-        self.fan_tab.set_pi_weight_slider_map(self.fan_pi_follows_duty_map)
         self.fan_tab.set_manual_weight_slider_value(self.fan_manual_mode_duty)
         
         # Load OLED interface parameters
@@ -318,28 +335,30 @@ class MainWindow(QMainWindow):
         self.fan_tab.fan_case_low_temp_plus_btn.clicked.connect(self.fan_case_weight_low_temp_plus_btn_event)
         self.fan_tab.fan_case_high_temp_minus_btn.clicked.connect(self.fan_case_weight_high_temp_minus_btn_event)
         self.fan_tab.fan_case_high_temp_plus_btn.clicked.connect(self.fan_case_weight_high_temp_plus_btn_event)
-        self.fan_tab.fan_case_temp_schmitt_minus_btn.clicked.connect(self.fan_case_weight_schmitt_minus_event)
-        self.fan_tab.fan_case_temp_schmitt_plus_btn.clicked.connect(self.fan_case_weight_schmitt_plus_event)
-        self.fan_tab.fan_case_low_speed_slider.valueChanged.connect(self.fan_case_low_slider_value_change_event)
-        self.fan_tab.fan_case_middle_speed_slider.valueChanged.connect(self.fan_case_middle_slider_value_change_event)
-        self.fan_tab.fan_case_high_speed_slider.valueChanged.connect(self.fan_case_high_slider_value_change_event)
-        self.fan_tab.fan_case_low_speed_slider.sliderReleased.connect(self.fan_case_slider_release_event)
-        self.fan_tab.fan_case_middle_speed_slider.sliderReleased.connect(self.fan_case_slider_release_event)
-        self.fan_tab.fan_case_high_speed_slider.sliderReleased.connect(self.fan_case_slider_release_event)
-        self.fan_tab.fan_pi_pwm_min_slider.valueChanged.connect(self.fan_pi_follow_min_slider_value_change_event)
-        self.fan_tab.fan_pi_pwm_max_slider.valueChanged.connect(self.fan_pi_follow_max_slider_value_change_event)
-        self.fan_tab.fan_pi_pwm_min_slider.sliderReleased.connect(self.fan_pi_follow_slider_release_event)
-        self.fan_tab.fan_pi_pwm_max_slider.sliderReleased.connect(self.fan_pi_follow_slider_release_event)
         self.fan_tab.fan_manual_slider_fan1.valueChanged.connect(self.fan_manual_slider_fan1_value_change_event)
         self.fan_tab.fan_manual_slider_fan2.valueChanged.connect(self.fan_manual_slider_fan2_value_change_event)
-        self.fan_tab.fan_manual_slider_fan3.valueChanged.connect(self.fan_manual_slider_fan3_value_change_event)
         self.fan_tab.fan_manual_slider_fan1.sliderReleased.connect(self.fan_manual_slider_release_event)
         self.fan_tab.fan_manual_slider_fan2.sliderReleased.connect(self.fan_manual_slider_release_event)
-        self.fan_tab.fan_manual_slider_fan3.sliderReleased.connect(self.fan_manual_slider_release_event)
         self.fan_tab.fan_btn_default_config.clicked.connect(self.fan_default_config_event)
         self.fan_tab.fan_btn_save_config.clicked.connect(self.fan_save_config_event)
         self.fan_tab.fan_btn_edit_custom_code.clicked.connect(self.fan_edit_custom_code_event)
         self.fan_tab.fan_btn_test_coustom_code.clicked.connect(self.fan_test_custom_code_event)
+
+        if self.expansion.get_board_type() == 'FNK0107':
+            self.fan_tab.fan_case_temp_schmitt_minus_btn.clicked.connect(self.fan_case_weight_schmitt_minus_event)
+            self.fan_tab.fan_case_temp_schmitt_plus_btn.clicked.connect(self.fan_case_weight_schmitt_plus_event)
+            self.fan_tab.fan_case_low_speed_slider.valueChanged.connect(self.fan_case_low_slider_value_change_event)
+            self.fan_tab.fan_case_middle_speed_slider.valueChanged.connect(self.fan_case_middle_slider_value_change_event)
+            self.fan_tab.fan_case_high_speed_slider.valueChanged.connect(self.fan_case_high_slider_value_change_event)
+            self.fan_tab.fan_case_low_speed_slider.sliderReleased.connect(self.fan_case_slider_release_event)
+            self.fan_tab.fan_case_middle_speed_slider.sliderReleased.connect(self.fan_case_slider_release_event)
+            self.fan_tab.fan_case_high_speed_slider.sliderReleased.connect(self.fan_case_slider_release_event)
+            self.fan_tab.fan_pi_pwm_min_slider.valueChanged.connect(self.fan_pi_follow_min_slider_value_change_event)
+            self.fan_tab.fan_pi_pwm_max_slider.valueChanged.connect(self.fan_pi_follow_max_slider_value_change_event)
+            self.fan_tab.fan_pi_pwm_min_slider.sliderReleased.connect(self.fan_pi_follow_slider_release_event)
+            self.fan_tab.fan_pi_pwm_max_slider.sliderReleased.connect(self.fan_pi_follow_slider_release_event)
+            self.fan_tab.fan_manual_slider_fan3.valueChanged.connect(self.fan_manual_slider_fan3_value_change_event)
+            self.fan_tab.fan_manual_slider_fan3.sliderReleased.connect(self.fan_manual_slider_release_event)
 
         # OLED interface signals and slot functions
         self.oled_tab.screen1_checkbox.clicked.connect(self.oled_screen1_checkbox_event)
@@ -379,6 +398,9 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self.tab_changed_event)
 
     # UI display related signals and slot functions
+    def celsius_to_fahrenheit(self, celsius):
+        """Convert Celsius to Fahrenheit"""
+        return (celsius * 9/5) + 32
     def update_monitor_data_event(self):
         """Periodically update monitor interface display data"""
         try:
@@ -390,11 +412,12 @@ class MainWindow(QMainWindow):
             ram_usage = memory_info[0] if isinstance(memory_info, list) else memory_info
             disk_info = self.system_info.get_raspberry_pi_disk_usage()      # Disk usage information
             disk_usage = disk_info[0] if isinstance(disk_info, list) else disk_info
-            
-            # Get expansion board information
             rpi_fan_pwm = self.system_info.get_raspberry_pi_fan_duty()      # Raspberry Pi fan PWM
             case_fan_pwm = self.expansion.get_fan_duty()[:2]                # Case fan PWM values
             
+            rpi_temp_fahrenheit = self.celsius_to_fahrenheit(rpi_temp)      # Convert Raspberry Pi temperature to Fahrenheit
+            case_temp_fahrenheit = self.celsius_to_fahrenheit(case_temp)    # Convert case temperature to Fahrenheit
+
             # Update progress controls
             # CPU usage
             self.monitoring_tab.setCircleProgressValue(0, cpu_usage, self.metric_labels[0], f"{cpu_usage:.1f}%")
@@ -403,10 +426,16 @@ class MainWindow(QMainWindow):
             self.monitoring_tab.setCircleProgressValue(1, ram_usage, self.metric_labels[1], f"{ram_usage:.1f}%")
 
             # Raspberry Pi temperature 
-            self.monitoring_tab.setCircleProgressValue(2, min(100, rpi_temp/80*100), self.metric_labels[2], f"{rpi_temp:.1f}°C")
+            if self.monitor_is_convert_cpu_temp_to_fahrenheit == False:
+                self.monitoring_tab.setCircleProgressValue(2, min(100, rpi_temp/80*100), self.metric_labels[2], f"{rpi_temp:.1f}°C")
+            else:
+                self.monitoring_tab.setCircleProgressValue(2, min(100, rpi_temp/80*100), self.metric_labels[2], f"{rpi_temp_fahrenheit:.1f}°F")
             
             # Case temperature (using Raspberry Pi temperature as placeholder, can be replaced with actual sensor data)
-            self.monitoring_tab.setCircleProgressValue(3, min(100, case_temp/80*100), self.metric_labels[3], f"{case_temp:.1f}°C")
+            if self.monitor_is_convert_case_temp_to_fahrenheit == False:
+                self.monitoring_tab.setCircleProgressValue(3, min(100, case_temp/80*100), self.metric_labels[3], f"{case_temp:.1f}°C")
+            else:
+                self.monitoring_tab.setCircleProgressValue(3, min(100, case_temp/80*100), self.metric_labels[3], f"{case_temp_fahrenheit:.1f}°F")
             
             # Storage usage
             self.monitoring_tab.setCircleProgressValue(4, disk_usage, self.metric_labels[4], f"{disk_usage:.1f}%")
@@ -497,11 +526,6 @@ class MainWindow(QMainWindow):
         else:
             self.set_led_process(False)
             self.led_tab.led_btn_test_coustom_code.setText("Test")
-        if self.led_mode in [0, 4, 5]: 
-            self.led_tab.set_slider_control_state(False)  
-        else: 
-            self.led_tab.set_slider_control_state(True) 
-        self.led_tab.set_led_mode(self.led_mode)
         self.send_led_mode_to_expansion(self.led_mode)
     def led_slider_value_change_event(self):
         """Handle LED slider value change event"""
@@ -598,84 +622,127 @@ class MainWindow(QMainWindow):
                 self.fan_process = None
     def send_fan_mode_to_expansion(self, mode):
         """Send fan mode to expansion board"""
-        if mode == 0:
-            self.expansion.set_fan_mode(2)  
-            self.expansion.set_fan_threshold(
-                self.fan_temp_mode_threshold[0],
-                self.fan_temp_mode_threshold[1],
-                self.fan_temp_mode_threshold[2]
-            )
-            self.expansion.set_fan_temp_mode_speed(
-                self.fan_temp_mode_duty[0],
-                self.fan_temp_mode_duty[1],
-                self.fan_temp_mode_duty[2]
-            )
-        elif mode == 1:
-            self.expansion.set_fan_mode(3)
-            self.expansion.set_fan_pi_following(
-                self.fan_pi_follows_duty_map[0],
-                self.fan_pi_follows_duty_map[1]
-            )
-        elif mode == 2:
-            self.expansion.set_fan_mode(1)
-            self.expansion.set_fan_duty(
-                self.fan_manual_mode_duty[0],
-                self.fan_manual_mode_duty[1],
-                self.fan_manual_mode_duty[2]
-            )
-        elif mode == 4:
-            self.expansion.set_fan_mode(0)
-            self.expansion.set_fan_duty(0,0,0)
+        if self.expansion.get_board_type() == "FNK0100":
+            if mode == 0:
+                self.expansion.set_fan_mode(2)  
+                self.expansion.set_fan_temp_mode_threshold(
+                    self.fan_temp_mode_threshold[0],
+                    self.fan_temp_mode_threshold[1]
+                )
+            elif mode == 1:
+                self.expansion.set_fan_mode(1)
+                self.expansion.set_fan_duty(
+                    self.fan_manual_mode_duty[0],
+                    self.fan_manual_mode_duty[1]
+                )
+            elif mode == 3:
+                self.expansion.set_fan_mode(0)
+                self.expansion.set_fan_duty(0, 0)
+        elif self.expansion.get_board_type() == "FNK0107":
+            if mode == 0:
+                self.expansion.set_fan_mode(2)  
+                self.expansion.set_fan_temp_mode_threshold(
+                    self.fan_temp_mode_threshold[0],
+                    self.fan_temp_mode_threshold[1],
+                    self.fan_temp_mode_threshold[2]
+                )
+                self.expansion.set_fan_temp_mode_speed(
+                    self.fan_temp_mode_duty[0],
+                    self.fan_temp_mode_duty[1],
+                    self.fan_temp_mode_duty[2]
+                )
+            elif mode == 1:
+                self.expansion.set_fan_mode(3)
+                self.expansion.set_fan_pi_following(
+                    self.fan_pi_follows_duty_map[0],
+                    self.fan_pi_follows_duty_map[1]
+                )
+            elif mode == 2:
+                self.expansion.set_fan_mode(1)
+                self.expansion.set_fan_duty(
+                    self.fan_manual_mode_duty[0],
+                    self.fan_manual_mode_duty[1],
+                    self.fan_manual_mode_duty[2]
+                )
+            elif mode == 4:
+                self.expansion.set_fan_mode(0)
+                self.expansion.set_fan_duty(0, 0, 0)
     def fan_radio_clicked_event(self):
         """Handle FAN mode switch event"""
         sender_button = self.sender()
         for i in range(len(self.fan_tab.fan_mode_radio_buttons_names)):
             if sender_button.text() == self.fan_tab.fan_mode_radio_buttons_names[i]:
                 self.fan_mode = i
-        if self.fan_mode == 3: 
-            self.set_fan_process(True)
-            self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
-        else:
-            self.set_fan_process(False)
-            self.fan_tab.fan_btn_test_coustom_code.setText("Test")
-        self.fan_tab.set_fan_mode(self.fan_mode)
         self.send_fan_mode_to_expansion(self.fan_mode)
+        if self.expansion.get_board_type() == 'FNK0107':
+            if self.fan_mode == 3: 
+                self.set_fan_process(True)
+                self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
+            else:
+                self.set_fan_process(False)
+                self.fan_tab.fan_btn_test_coustom_code.setText("Test")
+        elif self.expansion.get_board_type() == 'FNK0100':
+            if self.fan_mode == 2: 
+                self.set_fan_process(True)
+                self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
+            else:
+                self.set_fan_process(False)
+                self.fan_tab.fan_btn_test_coustom_code.setText("Test")
+        
     def fan_case_weight_low_temp_minus_btn_event(self):
         current_value = int(self.fan_tab.fan_case_low_temp_input.text())
         self.fan_temp_mode_threshold[0] = max(self.ui_fan_temp_mode_threshold_range[0][0], current_value - 1) # Minimum value is 10
         self.fan_tab.fan_case_low_temp_input.setText(str(self.fan_temp_mode_threshold[0]))
         low_temp, high_temp, schmitt = self.fan_temp_mode_threshold
-        self.expansion.set_fan_threshold(low_temp, high_temp, schmitt)
+        if self.expansion.get_board_type() == "FNK0100":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp)
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp, schmitt)
     def fan_case_weight_low_temp_plus_btn_event(self):
         current_value = int(self.fan_tab.fan_case_low_temp_input.text())
         self.fan_temp_mode_threshold[0] = min(self.ui_fan_temp_mode_threshold_range[0][1], current_value + 1)  # Maximum value is 40
         self.fan_tab.fan_case_low_temp_input.setText(str(self.fan_temp_mode_threshold[0]))
         low_temp, high_temp, schmitt = self.fan_temp_mode_threshold
-        self.expansion.set_fan_threshold(low_temp, high_temp, schmitt)
+        if self.expansion.get_board_type() == "FNK0100":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp)
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp, schmitt)
     def fan_case_weight_high_temp_minus_btn_event(self):
         current_value = int(self.fan_tab.fan_case_high_temp_input.text())
         self.fan_temp_mode_threshold[1] = max(self.ui_fan_temp_mode_threshold_range[1][0], current_value - 1)  # Minimum value is 50
         self.fan_tab.fan_case_high_temp_input.setText(str(self.fan_temp_mode_threshold[1]))
         low_temp, high_temp, schmitt = self.fan_temp_mode_threshold
-        self.expansion.set_fan_threshold(low_temp, high_temp, schmitt)
+        if self.expansion.get_board_type() == "FNK0100":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp)
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp, schmitt)
     def fan_case_weight_high_temp_plus_btn_event(self):
         current_value = int(self.fan_tab.fan_case_high_temp_input.text())
         self.fan_temp_mode_threshold[1] = min(self.ui_fan_temp_mode_threshold_range[1][1], current_value + 1)  # Maximum value is 80
         self.fan_tab.fan_case_high_temp_input.setText(str(self.fan_temp_mode_threshold[1]))
         low_temp, high_temp, schmitt = self.fan_temp_mode_threshold
-        self.expansion.set_fan_threshold(low_temp, high_temp, schmitt)
+        if self.expansion.get_board_type() == "FNK0100":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp)
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp, schmitt)
     def fan_case_weight_schmitt_minus_event(self):
         current_value = int(self.fan_tab.fan_case_temp_schmitt_input.text())
         self.fan_temp_mode_threshold[2] = max(self.ui_fan_temp_mode_threshold_range[2][0], current_value - 1)  # Minimum value is 1
         self.fan_tab.fan_case_temp_schmitt_input.setText(str(self.fan_temp_mode_threshold[2]))
         low_temp, high_temp, schmitt = self.fan_temp_mode_threshold
-        self.expansion.set_fan_threshold(low_temp, high_temp, schmitt)
+        if self.expansion.get_board_type() == "FNK0100":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp)
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp, schmitt)
     def fan_case_weight_schmitt_plus_event(self):
         current_value = int(self.fan_tab.fan_case_temp_schmitt_input.text())
         self.fan_temp_mode_threshold[2] = min(self.ui_fan_temp_mode_threshold_range[2][1], current_value + 1)  # Maximum value is 5
         self.fan_tab.fan_case_temp_schmitt_input.setText(str(self.fan_temp_mode_threshold[2]))
         low_temp, high_temp, schmitt = self.fan_temp_mode_threshold
-        self.expansion.set_fan_threshold(low_temp, high_temp, schmitt)
+        if self.expansion.get_board_type() == "FNK0100":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp)
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.expansion.set_fan_temp_mode_threshold(low_temp, high_temp, schmitt)
     def fan_case_low_slider_value_change_event(self):
         self.fan_temp_mode_duty[0] = self.fan_tab.fan_case_low_speed_slider.value()
         self.fan_tab.set_case_weight_slider_value(self.fan_temp_mode_duty)
@@ -711,7 +778,10 @@ class MainWindow(QMainWindow):
         self.fan_tab.set_manual_weight_slider_value(self.fan_manual_mode_duty)
     def fan_manual_slider_release_event(self):
         d1, d2, d3 = self.fan_manual_mode_duty
-        self.expansion.set_fan_duty(d1, d2, d3)
+        if self.expansion.get_board_type() == "FNK0100":
+            self.expansion.set_fan_duty(d1, d2)
+        elif self.expansion.get_board_type() == "FNK0107":
+            self.expansion.set_fan_duty(d1, d2, d3)
     def fan_default_config_event(self):
         """Handle FAN default configuration button click event"""
         self.fan_mode = 0                                            # Fan mode
@@ -721,7 +791,7 @@ class MainWindow(QMainWindow):
         self.fan_pi_follows_duty_map = [0, 255]                      # Fan follows Raspberry Pi mode duty cycle mapping parameters
         self.set_fan_process(False)
         self.fan_tab.fan_btn_test_coustom_code.setText("Test")
-        self.fan_tab.set_fan_mode(self.fan_mode)
+        self.fan_tab.set_fan_radio_mode(self.fan_mode)
         self.fan_tab.set_manual_weight_slider_value(self.fan_manual_mode_duty)
         self.fan_tab.set_case_weight_temp(self.fan_temp_mode_threshold)
         self.fan_tab.set_case_weight_slider_value(self.fan_temp_mode_duty)
@@ -1128,24 +1198,42 @@ class MainWindow(QMainWindow):
                 self.config_manager.save_config()
                 self.setting_tab.btn_fan_switch.setChecked(self.setting_fan_task_is_running)
                 self.setting_tab.set_custom_task_fan_button_state(self.setting_service_is_exist, self.setting_fan_task_is_running)
-                self.fan_tab.set_fan_mode(self.fan_mode)
+                self.fan_tab.set_fan_radio_mode(self.fan_mode)
                 time.sleep(1)
                 self.send_fan_mode_to_expansion(self.fan_mode)
-                if self.fan_mode == 3:
-                    self.set_fan_process(True)
-                    self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
-                else:
-                    self.set_fan_process(False)
-                    self.fan_tab.fan_btn_test_coustom_code.setText("Test")
+                if self.expansion.get_board_type() == "FNK0107":
+                    if self.fan_mode == 3:
+                        self.set_fan_process(True)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
+                    else:
+                        self.set_fan_process(False)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Test")
+                elif self.expansion.get_board_type() == "FNK0100":
+                    if self.fan_mode == 2:
+                        self.set_fan_process(True)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
+                    else:
+                        self.set_fan_process(False)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Test")
             else:
-                if self.fan_process is not None:
-                    self.fan_mode = 3
-                    self.fan_tab.set_fan_mode(self.fan_mode)
-                    self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
-                else:
-                    self.fan_tab.set_fan_mode(self.fan_mode)
-                    self.send_fan_mode_to_expansion(self.fan_mode)
-                    self.fan_tab.fan_btn_test_coustom_code.setText("Test")
+                if self.expansion.get_board_type() == "FNK0107":
+                    if self.fan_process is not None:
+                        self.fan_mode = 3
+                        self.fan_tab.set_fan_radio_mode(self.fan_mode)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
+                    else:
+                        self.fan_tab.set_fan_radio_mode(self.fan_mode)
+                        self.send_fan_mode_to_expansion(self.fan_mode)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Test")
+                elif self.expansion.get_board_type() == "FNK0100":
+                    if self.fan_process is not None:
+                        self.fan_mode = 2
+                        self.fan_tab.set_fan_radio_mode(self.fan_mode)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Stop")
+                    else:
+                        self.fan_tab.set_fan_radio_mode(self.fan_mode)
+                        self.send_fan_mode_to_expansion(self.fan_mode)
+                        self.fan_tab.fan_btn_test_coustom_code.setText("Test")
         
         elif current_tab_index == 3:
             if self.setting_service_is_exist and self.setting_oled_task_is_running: # If background service is running oled task
@@ -1154,6 +1242,7 @@ class MainWindow(QMainWindow):
                 self.config_manager.save_config()
                 self.setting_tab.btn_oled_switch.setChecked(self.setting_oled_task_is_running)
                 self.setting_tab.set_custom_task_oled_button_state(self.setting_service_is_exist, self.setting_oled_task_is_running)
+                time.sleep(1)
                 self.set_oled_process(True)
             else:
                 if  self.oled_process is not None:
@@ -1162,7 +1251,6 @@ class MainWindow(QMainWindow):
                 else:
                     self.set_oled_process(False)
                     self.setting_tab.btn_oled_test.setText("Test")
-            
 
         elif current_tab_index == 4:
             if self.led_process is not None:
@@ -1187,7 +1275,11 @@ class MainWindow(QMainWindow):
             self.monitor_update_color_timer_is_running = False
         self.set_led_process(False)
         self.set_fan_process(False)
-        self.set_oled_process(False)
+        if self.setting_service_is_exist and self.oled_process is not None:
+            self.set_oled_process(False)
+            self.setting_oled_task_is_running = True
+            self.config_manager.set_value('OLED', 'is_run_on_startup', self.setting_oled_task_is_running)
+            self.config_manager.save_config()
         os.system('sudo rm __pycache__ -rf')
         event.accept()
     def keyPressEvent(self, event):

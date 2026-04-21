@@ -1,31 +1,26 @@
-import threading
+from api_expansion import Expansion
+
 import atexit
 import signal
 import time
 import sys
-from api_expansion import Expansion
 
 class LED_TASK:
 
     def __init__(self):
         self.expansion = None
-        self.cleanup_done = False
-        self.stop_event = threading.Event()  # Keep for signal handling
+        self.running = True  # Add flag to control main loop
 
         try:
             self.expansion = Expansion()                            # Initialize Expansion object
         except Exception as e:
             sys.exit(1)
 
-        atexit.register(self.cleanup)
+        atexit.register(self.handle_signal)
         signal.signal(signal.SIGTERM, self.handle_signal)
         signal.signal(signal.SIGINT, self.handle_signal)
 
-    def cleanup(self):
-        # Perform cleanup operations
-        if self.cleanup_done:
-            return
-        self.cleanup_done = True
+    def handle_signal(self, signum=None, frame=None):
         try:
             if self.expansion:
                 self.expansion.set_led_mode(0)
@@ -41,12 +36,9 @@ class LED_TASK:
                 self.expansion.end()
         except Exception as e:
             print(e)
-
-    def handle_signal(self, signum, frame):
-        # Handle signal to stop the application
-        self.stop_event.set()
-        self.cleanup()
-        sys.exit(0)
+        
+        # Set running flag to False to exit main loop
+        self.running = False
 
     def show_single_color(self):
         """Main monitoring loop - single-threaded infinite loop for both OLED display and fan control"""
@@ -67,11 +59,17 @@ class LED_TASK:
         r,g,b = rainbow_colors[0]
         self.expansion.set_led_mode(1)
         self.expansion.set_all_led_color(r,g,b)
-        while not self.stop_event.is_set():
-            for i in range(len(rainbow_colors)):
-                r,g,b = rainbow_colors[i]
-                self.expansion.set_all_led_color(r,g,b)
-                time.sleep(0.5)
+        try:
+            while self.running:
+                for i in range(len(rainbow_colors)):
+                    if not self.running:
+                        break
+                    r,g,b = rainbow_colors[i]
+                    self.expansion.set_all_led_color(r,g,b)
+                    time.sleep(0.5)
+        except KeyboardInterrupt:
+            # This will be caught by the signal handlers
+            pass
 
     def wheel(self, pos):
         wheel_pos = pos % 255
@@ -95,11 +93,17 @@ class LED_TASK:
     def show_wheel_color(self):
         '''显示彩虹色'''
         self.expansion.set_led_mode(1)
-        while not self.stop_event.is_set():
-            for i in range(255):
-                r,g,b = self.wheel(i)
-                self.expansion.set_all_led_color(r,g,b)
-                time.sleep(0.05)
+        try:
+            while self.running:
+                for i in range(255):
+                    if not self.running:
+                        break
+                    r,g,b = self.wheel(i)
+                    self.expansion.set_all_led_color(r,g,b)
+                    time.sleep(0.05)
+        except KeyboardInterrupt:
+            # This will be caught by the signal handlers
+            pass
 
 
     def run_led_loop(self):
@@ -120,8 +124,3 @@ if __name__ == "__main__":
         print("\nShutdown requested by user (Ctrl+C)")
     except Exception as e:
         print(f"Unexpected error: {e}")
-    finally:
-        if led_task is not None:
-            led_task.stop_event.set()
-            led_task.cleanup()
-    

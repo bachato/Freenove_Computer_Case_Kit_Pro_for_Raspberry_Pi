@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QCh
 from PyQt5.QtCore import Qt
 
 class PressableButton(QPushButton):
-    """自定义按钮类，添加按下和释放时的视觉效果"""
+    """A custom push button class with a pressed state."""
     def __init__(self, text):
         super().__init__(text)
         self.setStyleSheet("""
@@ -27,9 +27,8 @@ class PressableButton(QPushButton):
         self.original_style = self.styleSheet()
 
     def mousePressEvent(self, event):
-        """处理鼠标按下事件"""
+        """Mouse press event handler"""
         self.is_pressed = True
-        # 添加按下效果：增加阴影效果，模拟按钮按下
         pressed_style = """
             QPushButton {
                 background-color: #333333;
@@ -48,9 +47,8 @@ class PressableButton(QPushButton):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        """处理鼠标释放事件"""
+        """Mouse release event handler"""
         self.is_pressed = False
-        # 恢复原始样式
         self.setStyleSheet(self.original_style)
         super().mouseReleaseEvent(event)
 
@@ -148,7 +146,7 @@ class OledTab(QWidget):
                 width: 20px;
             }
             QComboBox::down-arrow {
-                image: url(./arrow-down.png);
+                image: url(./picture/arrow-down.png);
             }
             QComboBox QAbstractItemView {
                 text-align: center;
@@ -377,7 +375,7 @@ class OledTab(QWidget):
             btn_style = """
                 QLabel {
                     background-color: #444444;
-                    color: white;               /* 白色文字 */
+                    color: white;              
                     border: 1px solid #555555;
                     border-radius: 5px;
                     padding: 5px;
@@ -400,7 +398,7 @@ class OledTab(QWidget):
             btn_style = """
                 QLabel {
                     background-color: #444444;
-                    color: #888888;             /* 灰色文字 */
+                    color: #888888;             
                     border: 1px solid #555555;
                     border-radius: 5px;
                     padding: 5px;

@@ -2,7 +2,6 @@ from api_oled import OLED
 from api_expansion import Expansion
 from api_systemInfo import SystemInformation
 from api_json import ConfigManager
-import threading
 import atexit
 import signal
 import time
@@ -12,11 +11,15 @@ class OLED_TASK:
 
     def __init__(self):
         # Initialize OLED and Expansion objects
+        self.convert_to_fahrenheit = False   # Whether to convert to Fahrenheit
+
         self.oled = None
         self.expansion = None
+        self.board_type = None
+        self.is_convert_cpu_temp_to_fahrenheit = False
+        self.is_convert_case_temp_to_fahrenheit = False
         self.font_size = 12
-        self.cleanup_done = False
-        self.stop_event = threading.Event()  # Keep for signal handling
+        self.running = True  # Add flag to control main loop
         
         # Initialize config manager
         self.config_manager = ConfigManager()
@@ -30,12 +33,16 @@ class OLED_TASK:
         self._fan_pwm_path = None
 
         try:
-            self.oled = OLED(rotate_angle=180)
+            self.expansion = Expansion()                            # Initialize Expansion object
+            self.board_type = self.expansion.get_board_type()
         except Exception as e:
             sys.exit(1)
 
         try:
-            self.expansion = Expansion()                            # Initialize Expansion object
+            if self.board_type == "FNK0100":
+                self.oled = OLED(rotate_angle=0)
+            elif self.board_type == "FNK0107":
+                self.oled = OLED(rotate_angle=180)
         except Exception as e:
             sys.exit(1)
 
@@ -44,11 +51,14 @@ class OLED_TASK:
         except Exception as e:
             sys.exit(1)
 
-        atexit.register(self.cleanup)
+        atexit.register(self.handle_signal)
         signal.signal(signal.SIGTERM, self.handle_signal)
         signal.signal(signal.SIGINT, self.handle_signal)
 
-
+    def celsius_to_fahrenheit(self, celsius):
+        """Convert Celsius to Fahrenheit"""
+        return (celsius * 9/5) + 32
+    
     def get_computer_temperature(self):
         # Get the computer temperature using Expansion object
         try:
@@ -76,29 +86,16 @@ class OLED_TASK:
             return self.expansion.get_led_mode()
         except Exception as e:
             return 0
-    
-    def set_computer_fan_duty(self, duty):
-        """Set the fan duty cycle for the computer"""
-        try:
-            self.expansion.set_fan_duty(duty[0], duty[1], duty[2])
-        except Exception as e:
-            print(e)
 
-    def cleanup(self):
-        # Perform cleanup operations
-        if self.cleanup_done:
-            return
-        self.cleanup_done = True
+    def handle_signal(self, signum=None, frame=None):
         try:
             if self.oled:
                 self.oled.close()
         except Exception as e:
             print(e)
-    def handle_signal(self, signum, frame):
-        # Handle signal to stop the application
-        self.stop_event.set()
-        self.cleanup()
-        sys.exit(0)
+        
+        # Set running flag to False to exit main loop
+        self.running = False
 
     def format_date(self, date_str):
         """Format date based on data_format configuration"""
@@ -235,12 +232,18 @@ class OLED_TASK:
     def oled_ui_3_show(self, pi_temperature, cpu_temperature):
         self.oled.clear()
 
+        # Convert temperature to Fahrenheit
+        cpu_fahrenheit = round(cpu_temperature * 1.8 + 32)
+        pi_fahrenheit = round(pi_temperature * 1.8 + 32)
+
         # Draw basic interface outline
         self.oled.draw_rectangle((0, 0, self.oled.width-1, self.oled.height-1), outline="white")
         self.oled.draw_line(((64, 0), (64, self.oled.height-1)), fill="white")
 
         # Get screen3 interchange setting
         self.screen3_interchange = self.config_manager.get_value('OLED', 'screen3').get('interchange', 0)
+        self.is_convert_cpu_temp_to_fahrenheit = self.config_manager.get_value('OLED', 'screen3').get('cpu_temp_celsius_or_fahrenheit', False)
+        self.is_convert_case_temp_to_fahrenheit = self.config_manager.get_value('OLED', 'screen3').get('case_temp_celsius_or_fahrenheit', False)
 
         if self.screen3_interchange == 1:
             # First row first column shows Pi temperature, first row second column shows PC temperature
@@ -250,8 +253,14 @@ class OLED_TASK:
             self.oled.draw_dial(center_xy=(32,34), radius=16, angle=(225, 315), directory="CW", tick_count=10, percentage=cpu_temperature, start_value=0, end_value=100)
             self.oled.draw_dial(center_xy=(96,34), radius=16, angle=(225, 315), directory="CW", tick_count=10, percentage=pi_temperature, start_value=0, end_value=100)
             # First row first column shows Pi temperature, first row second column shows CPU temperature
-            self.oled.draw_text("{}℃".format(cpu_temperature), position=((0,48),(64,64)), directory="center", offset=(0, 0), font_size=self.font_size)
-            self.oled.draw_text("{}℃".format(round(pi_temperature)), position=((65,48),(128,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            if self.is_convert_cpu_temp_to_fahrenheit:
+                self.oled.draw_text("{}℉".format(cpu_fahrenheit), position=((0,48),(64,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            else:
+                self.oled.draw_text("{}℃".format(cpu_temperature), position=((0,48),(64,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            if self.is_convert_case_temp_to_fahrenheit:
+                self.oled.draw_text("{}℉".format(pi_fahrenheit), position=((65,48),(128,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            else:
+                self.oled.draw_text("{}℃".format(round(pi_temperature)), position=((65,48),(128,64)), directory="center", offset=(0, 0), font_size=self.font_size)
         else:
             # First row first column shows Pi temperature, first row second column shows PC temperature
             self.oled.draw_text("Pi", position=((0,0),(64,16)), directory="center", offset=(0, 0), font_size=self.font_size)
@@ -260,8 +269,14 @@ class OLED_TASK:
             self.oled.draw_dial(center_xy=(32,34), radius=16, angle=(225, 315), directory="CW", tick_count=10, percentage=pi_temperature, start_value=0, end_value=100)
             self.oled.draw_dial(center_xy=(96,34), radius=16, angle=(225, 315), directory="CW", tick_count=10, percentage=cpu_temperature, start_value=0, end_value=100)
             # First row first column shows Pi temperature, first row second column shows CPU temperature
-            self.oled.draw_text("{}℃".format(round(pi_temperature)), position=((0,48),(64,64)), directory="center", offset=(0, 0), font_size=self.font_size)
-            self.oled.draw_text("{}℃".format(cpu_temperature), position=((65,48),(128,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            if self.is_convert_cpu_temp_to_fahrenheit:
+                self.oled.draw_text("{}℉".format(cpu_fahrenheit), position=((65,48),(128,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            else:
+                self.oled.draw_text("{}℃".format(round(pi_temperature)), position=((0,48),(64,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            if self.is_convert_case_temp_to_fahrenheit:
+                self.oled.draw_text("{}℉".format(pi_fahrenheit), position=((0,48),(64,64)), directory="center", offset=(0, 0), font_size=self.font_size)
+            else:
+                self.oled.draw_text("{}℃".format(cpu_temperature), position=((65,48),(128,64)), directory="center", offset=(0, 0), font_size=self.font_size)
         self.oled.show()
 
     def oled_ui_4_show(self, duty):
@@ -366,7 +381,7 @@ class OLED_TASK:
         screen_start_time = time.time()  # Record the start time of current screen
         current_screen = 0  # Current screen index
         
-        while not self.stop_event.is_set():
+        while self.running:
             # Update data every 0.3 seconds
             current_date = self.system_information.get_raspberry_pi_date()
             current_weekday = self.system_information.get_raspberry_pi_weekday()
@@ -379,8 +394,6 @@ class OLED_TASK:
 
             cpu_temperature = self.system_information.get_raspberry_pi_cpu_temperature()
             computer_temperature = self.get_computer_temperature()
-            led_mode = self.get_computer_led_mode() 
-            fan_mode = self.get_computer_fan_mode()
 
             current_pi_duty = self.system_information.get_raspberry_pi_fan_duty()
             computer_fan_duty = self.get_computer_fan_duty()
@@ -443,26 +456,6 @@ class OLED_TASK:
                 screen_functions[current_active_index]()
             except Exception as e:
                 print(e)
-            
-            # # Print data every 4 updates (1.2 seconds)
-            # if oled_counter % 4 == 0:
-                # # Use single print statement to reduce I/O
-                # print("raspberry today:        ", current_date)
-                # print("raspberry weekday:      ", current_weekday)
-                # print("raspberry current time: ", current_time)
-                # print("raspberry ip address:   ", ip_address) 
-                # print("raspberry cpu usage:     {}%".format(cpu_usage))
-                # print("raspberry memory usage:  {}% (used: {} G, totol: {} G)".format(memory_usage[0], memory_usage[1], memory_usage[2]))
-                # print("raspberry disk usage:    {}% (used: {} G, totol: {} G)".format(disk_usage[0], disk_usage[1], disk_usage[2]))
-                # print("raspberry temperature:   {}".format(cpu_temperature))
-                # print("computer temperature:    {}".format(computer_temperature))
-                # print("computer led mode:      ", led_mode)
-                # print("computer fan mode:      ", fan_mode)
-                # print("raspberry fan duty:     ", current_pi_duty)
-                # print("computer fan duty:      ", computer_fan_duty)
-                # print("")
-            
-            # oled_counter += 1
             time.sleep(0.3)  # Base interval of 0.3 second
 
 
@@ -478,8 +471,3 @@ if __name__ == "__main__":
         print("\nShutdown requested by user (Ctrl+C)")
     except Exception as e:
         print(f"Unexpected error: {e}")
-    finally:
-        if oled_task is not None:
-            oled_task.stop_event.set()
-            oled_task.cleanup()
-    
